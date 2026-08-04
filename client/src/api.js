@@ -1,8 +1,17 @@
+let onUnauthorized = () => {};
+export function setUnauthorizedHandler(fn) {
+  onUnauthorized = fn;
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`/api${path}`, {
     headers: options.body instanceof FormData ? {} : { "Content-Type": "application/json" },
     ...options,
   });
+  if (res.status === 401) {
+    onUnauthorized();
+    throw new Error("Not authenticated");
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Request failed: ${res.status}`);
@@ -12,6 +21,10 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  authStatus: () => request("/auth/status"),
+  login: (password) => request("/auth/login", { method: "POST", body: JSON.stringify({ password }) }),
+  logout: () => request("/auth/logout", { method: "POST" }),
+
   listTransactions: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request(`/transactions${qs ? `?${qs}` : ""}`);
@@ -36,6 +49,5 @@ export const api = {
     request("/receipts/confirm", { method: "POST", body: JSON.stringify(data) }),
 
   turoStatus: () => request("/turo/status"),
-  turoConnect: () => request("/turo/connect", { method: "POST" }),
   turoSync: (years) => request("/turo/sync", { method: "POST", body: JSON.stringify({ years }) }),
 };

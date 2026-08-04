@@ -1,74 +1,20 @@
-import { chromium } from "playwright";
 import { db } from "../db.js";
 import { encrypt, decrypt } from "../lib/crypto.js";
 
 // Turo has no public OAuth/API for hosts, and login always requires either an
 // SMS code, an email flow, or Google/Apple sign-in — none of which can be
-// driven unattended with a stored password. So instead we open a real,
-// visible browser window, let the user log in exactly as they normally
-// would, then capture and encrypt the resulting session (cookies/local
-// storage) via Playwright's storageState. Sync later reuses that session
-// without ever touching the user's credentials.
+// driven unattended with a stored password, and a deployed server usually
+// has no display to show a browser window on anyway. So the interactive
+// login itself runs locally (see server/scripts/connect-turo.js, meant to be
+// run on your own machine), which POSTs the resulting session here to be
+// encrypted and stored. Sync then reuses that session without ever seeing
+// the user's Turo credentials.
 
-const LOGIN_URL = "https://turo.com/us/en/login";
-const LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
-const POLL_INTERVAL_MS = 2000;
-
-let loginState = { status: "idle", message: null }; // idle | waiting | success | error
-
-export function getLoginState() {
-  return loginState;
-}
-
-export async function startInteractiveLogin() {
-  if (loginState.status === "waiting") {
-    return loginState;
-  }
-  loginState = { status: "waiting", message: "Browser window opened — log in to Turo there." };
-
-  (async () => {
-    let browser;
-    try {
-      browser = await chromium.launch({ headless: false });
-      const context = await browser.newContext();
-      const page = await context.newPage();
-      await page.goto(LOGIN_URL, { waitUntil: "domcontentloaded" });
-
-      const deadline = Date.now() + LOGIN_TIMEOUT_MS;
-      let loggedIn = false;
-      while (Date.now() < deadline) {
-        if (page.isClosed()) {
-          throw new Error("Browser window was closed before login completed.");
-        }
-        loggedIn = await page
-          .evaluate(() => {
-            const text = document.body.innerText || "";
-            return text.includes("Switch to host") || text.includes("Switch to guest");
-          })
-          .catch(() => false);
-        if (loggedIn) break;
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-      }
-
-      if (!loggedIn) {
-        throw new Error("Timed out waiting for login.");
-      }
-
-      const storageState = await context.storageState();
-      const encrypted = encrypt(JSON.stringify(storageState));
-      db.prepare(
-        `UPDATE turo_session SET storage_state_encrypted = ?, status = 'active', last_synced_at = NULL WHERE id = 1`
-      ).run(encrypted);
-
-      loginState = { status: "success", message: "Turo session saved." };
-      await browser.close();
-    } catch (err) {
-      loginState = { status: "error", message: err.message };
-      if (browser) await browser.close().catch(() => {});
-    }
-  })();
-
-  return loginState;
+export function saveIncomingStorageState(storageState) {
+  const encrypted = encrypt(JSON.stringify(storageState));
+  db.prepare(
+    `UPDATE turo_session SET storage_state_encrypted = ?, status = 'active', last_synced_at = NULL WHERE id = 1`
+  ).run(encrypted);
 }
 
 export function getSavedStorageState() {

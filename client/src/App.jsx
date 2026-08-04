@@ -1,10 +1,31 @@
+import { useEffect, useState } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
 import Dashboard from "./pages/Dashboard.jsx";
 import Transactions from "./pages/Transactions.jsx";
 import UploadReceipt from "./pages/UploadReceipt.jsx";
 import TuroSync from "./pages/TuroSync.jsx";
+import Login from "./pages/Login.jsx";
+import { api, setUnauthorizedHandler } from "./api.js";
 
 export default function App() {
+  const [authed, setAuthed] = useState(null); // null = checking
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => setAuthed(false));
+    api
+      .authStatus()
+      .then((s) => setAuthed(s.authenticated))
+      .catch(() => setAuthed(false));
+  }, []);
+
+  if (authed === null) return null;
+  if (!authed) return <Login onLoggedIn={() => setAuthed(true)} />;
+
+  const logout = async () => {
+    await api.logout();
+    setAuthed(false);
+  };
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -23,6 +44,9 @@ export default function App() {
             Turo Sync
           </NavLink>
         </nav>
+        <button className="secondary" style={{ marginTop: 24 }} onClick={logout}>
+          Log out
+        </button>
       </aside>
       <main className="main">
         <Routes>

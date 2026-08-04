@@ -4,7 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.join(__dirname, "..", "data");
+// DATA_DIR points at a mounted persistent volume in production (see
+// fly.toml) so a redeploy's new code doesn't shadow stored data.
+const dataDir = process.env.DATA_DIR
+  ? path.join(process.env.DATA_DIR, "db")
+  : path.join(__dirname, "..", "data");
 fs.mkdirSync(dataDir, { recursive: true });
 
 export const db = new Database(path.join(dataDir, "app.sqlite"));

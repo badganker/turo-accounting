@@ -20,9 +20,11 @@ export async function turoGet(path, storageState) {
     redirect: "manual",
   });
 
-  // A redirect (to /login, etc.) means the saved session is no longer valid.
-  if (res.status >= 300 && res.status < 400) {
-    const err = new Error("Turo session expired (redirected to login).");
+  // A redirect (to /login, etc.) or 401/403 means the saved session is no
+  // longer valid (confirmed against the real endpoint: an invalid cookie
+  // gets a plain 401, not a redirect).
+  if ((res.status >= 300 && res.status < 400) || res.status === 401 || res.status === 403) {
+    const err = new Error("Turo session expired.");
     err.code = "SESSION_EXPIRED";
     throw err;
   }

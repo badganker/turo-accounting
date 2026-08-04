@@ -8,7 +8,9 @@ import { db } from "../db.js";
 import { extractReceipt } from "../lib/claudeVision.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsDir = path.join(__dirname, "..", "..", "uploads");
+const uploadsDir = process.env.DATA_DIR
+  ? path.join(process.env.DATA_DIR, "uploads")
+  : path.join(__dirname, "..", "..", "uploads");
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 const upload = multer({
