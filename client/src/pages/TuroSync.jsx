@@ -55,9 +55,11 @@ export default function TuroSync() {
           npm run connect:turo
         </pre>
         <p className="muted">
-          A browser window opens — log in to Turo there exactly as you normally would. This app
-          never sees your password, only the resulting session. Set{" "}
-          <code>TURO_TARGET_URL</code> first if this app is deployed elsewhere, e.g.:
+          It'll ask for your <strong>account</strong> email/password (the one you log into this
+          app with, not Turo) so it knows whose session to save, then a browser window opens —
+          log in to Turo there exactly as you normally would. This app never sees your Turo
+          password, only the resulting session. Set <code>TURO_TARGET_URL</code> first if this
+          app is deployed elsewhere, e.g.:
         </p>
         <pre
           style={{

@@ -5,7 +5,7 @@ import { syncTuroEarnings } from "../turo/sync.js";
 const router = Router();
 
 router.get("/status", (req, res) => {
-  res.json({ session: getSessionStatus() });
+  res.json({ session: getSessionStatus(req.userId) });
 });
 
 // Called by server/scripts/connect-turo.js after an interactive login
@@ -16,13 +16,13 @@ router.post("/session/import", (req, res) => {
   if (!storageState || !Array.isArray(storageState.cookies)) {
     return res.status(400).json({ error: "storageState with cookies is required" });
   }
-  saveIncomingStorageState(storageState);
+  saveIncomingStorageState(req.userId, storageState);
   res.json({ ok: true });
 });
 
 router.post("/sync", async (req, res) => {
   try {
-    const result = await syncTuroEarnings({ years: req.body?.years });
+    const result = await syncTuroEarnings(req.userId, { years: req.body?.years });
     res.json(result);
   } catch (err) {
     const status = err.code === "NO_SESSION" || err.code === "SESSION_EXPIRED" ? 409 : 500;

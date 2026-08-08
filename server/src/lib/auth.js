@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import bcrypt from "bcryptjs";
 
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 export const SESSION_COOKIE = "turo_acct_session";
@@ -17,44 +18,44 @@ function sign(data) {
   return crypto.createHmac("sha256", getAuthSecret()).update(data).digest("base64url");
 }
 
-export function issueToken() {
-  const payload = Buffer.from(JSON.stringify({ exp: Date.now() + TOKEN_TTL_MS })).toString(
+export function issueToken(userId) {
+  const payload = Buffer.from(JSON.stringify({ userId, exp: Date.now() + TOKEN_TTL_MS })).toString(
     "base64url"
   );
   return `${payload}.${sign(payload)}`;
 }
 
 export function verifyToken(token) {
-  if (!token || typeof token !== "string" || !token.includes(".")) return false;
+  if (!token || typeof token !== "string" || !token.includes(".")) return null;
   const [payload, signature] = token.split(".");
   const expected = sign(payload);
   const sigBuf = Buffer.from(signature);
   const expectedBuf = Buffer.from(expected);
   if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
-    return false;
+    return null;
   }
   try {
-    const { exp } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    return typeof exp === "number" && exp > Date.now();
+    const { userId, exp } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (typeof exp !== "number" || exp <= Date.now() || !userId) return null;
+    return { userId };
   } catch {
-    return false;
+    return null;
   }
 }
 
-export function checkPassword(candidate) {
-  const expected = process.env.APP_PASSWORD;
-  if (!expected) {
-    throw new Error("APP_PASSWORD is not set in server/.env");
-  }
-  const a = Buffer.from(String(candidate || ""));
-  const b = Buffer.from(expected);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+export async function hashPassword(password) {
+  return bcrypt.hash(password, 12);
+}
+
+export async function verifyPassword(password, hash) {
+  return bcrypt.compare(password, hash);
 }
 
 export function requireAuth(req, res, next) {
-  const token = req.cookies?.[SESSION_COOKIE];
-  if (!verifyToken(token)) {
+  const claims = verifyToken(req.cookies?.[SESSION_COOKIE]);
+  if (!claims) {
     return res.status(401).json({ error: "Not authenticated" });
   }
+  req.userId = claims.userId;
   next();
 }

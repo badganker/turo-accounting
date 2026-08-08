@@ -21,7 +21,17 @@ app.use(cookieParser());
 const uploadsDir = process.env.DATA_DIR
   ? path.join(process.env.DATA_DIR, "uploads")
   : path.join(__dirname, "..", "uploads");
-app.use("/uploads", requireAuth, express.static(uploadsDir));
+// Not a blanket express.static — receipts are personal, so every request
+// must prove it belongs to the requesting user, not just be authenticated.
+app.get("/uploads/:userId/:filename", requireAuth, (req, res) => {
+  const filename = path.basename(req.params.filename); // strip any path traversal
+  if (Number(req.params.userId) !== req.userId || !/^[\w.-]+$/.test(filename)) {
+    return res.status(403).end();
+  }
+  res.sendFile(path.join(uploadsDir, String(req.userId), filename), (err) => {
+    if (err && !res.headersSent) res.status(404).end();
+  });
+});
 
 app.use("/api/auth", authRouter);
 app.get("/api/health", (req, res) => res.json({ ok: true }));

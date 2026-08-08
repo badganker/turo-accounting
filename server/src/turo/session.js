@@ -10,32 +10,39 @@ import { encrypt, decrypt } from "../lib/crypto.js";
 // encrypted and stored. Sync then reuses that session without ever seeing
 // the user's Turo credentials.
 
-export function saveIncomingStorageState(storageState) {
+export function saveIncomingStorageState(userId, storageState) {
   const encrypted = encrypt(JSON.stringify(storageState));
   db.prepare(
-    `UPDATE turo_session SET storage_state_encrypted = ?, status = 'active', last_synced_at = NULL WHERE id = 1`
-  ).run(encrypted);
+    `INSERT INTO turo_session (user_id, storage_state_encrypted, status, last_synced_at)
+     VALUES (@user_id, @encrypted, 'active', NULL)
+     ON CONFLICT(user_id) DO UPDATE SET
+       storage_state_encrypted = excluded.storage_state_encrypted,
+       status = 'active',
+       last_synced_at = NULL`
+  ).run({ user_id: userId, encrypted });
 }
 
-export function getSavedStorageState() {
-  const row = db.prepare(`SELECT * FROM turo_session WHERE id = 1`).get();
+export function getSavedStorageState(userId) {
+  const row = db.prepare(`SELECT * FROM turo_session WHERE user_id = ?`).get(userId);
   if (!row || row.status !== "active" || !row.storage_state_encrypted) {
     return null;
   }
   return JSON.parse(decrypt(row.storage_state_encrypted));
 }
 
-export function markSessionExpired() {
-  db.prepare(`UPDATE turo_session SET status = 'expired' WHERE id = 1`).run();
+export function markSessionExpired(userId) {
+  db.prepare(`UPDATE turo_session SET status = 'expired' WHERE user_id = ?`).run(userId);
 }
 
-export function markSessionSynced() {
+export function markSessionSynced(userId) {
   db.prepare(
-    `UPDATE turo_session SET last_synced_at = datetime('now') WHERE id = 1`
-  ).run();
+    `UPDATE turo_session SET last_synced_at = datetime('now') WHERE user_id = ?`
+  ).run(userId);
 }
 
-export function getSessionStatus() {
-  const row = db.prepare(`SELECT status, last_synced_at FROM turo_session WHERE id = 1`).get();
-  return row;
+export function getSessionStatus(userId) {
+  const row = db
+    .prepare(`SELECT status, last_synced_at FROM turo_session WHERE user_id = ?`)
+    .get(userId);
+  return row || { status: "none", last_synced_at: null };
 }

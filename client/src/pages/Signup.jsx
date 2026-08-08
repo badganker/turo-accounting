@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api.js";
 
-export default function Login({ onLoggedIn, onSwitchToSignup }) {
+export default function Signup({ onSignedUp, onSwitchToLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
@@ -12,8 +12,8 @@ export default function Login({ onLoggedIn, onSwitchToSignup }) {
     setLoading(true);
     setError(null);
     try {
-      await api.login(email, password);
-      onLoggedIn();
+      await api.signup(email, password);
+      onSignedUp();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -31,7 +31,7 @@ export default function Login({ onLoggedIn, onSwitchToSignup }) {
       }}
     >
       <form className="card" style={{ width: 300 }} onSubmit={submit}>
-        <h2 style={{ marginTop: 0 }}>Turo Accounting</h2>
+        <h2 style={{ marginTop: 0 }}>Create your account</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13 }}>
             Email
@@ -49,15 +49,16 @@ export default function Login({ onLoggedIn, onSwitchToSignup }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            <span className="muted">At least 8 characters</span>
           </label>
         </div>
         {error && <div className="error">{error}</div>}
         <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 12 }}>
-          <button type="submit" disabled={loading || !email || !password}>
-            {loading ? "Signing in…" : "Sign in"}
+          <button type="submit" disabled={loading || !email || password.length < 8}>
+            {loading ? "Creating…" : "Create account"}
           </button>
-          <button type="button" className="secondary" onClick={onSwitchToSignup}>
-            Create account
+          <button type="button" className="secondary" onClick={onSwitchToLogin}>
+            I already have an account
           </button>
         </div>
       </form>

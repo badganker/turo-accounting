@@ -5,8 +5,8 @@ const router = Router();
 
 router.get("/", (req, res) => {
   const { from, to } = req.query;
-  const clauses = [];
-  const params = {};
+  const clauses = ["user_id = @user_id"];
+  const params = { user_id: req.userId };
   if (from) {
     clauses.push("date >= @from");
     params.from = from;
@@ -15,7 +15,7 @@ router.get("/", (req, res) => {
     clauses.push("date <= @to");
     params.to = to;
   }
-  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  const where = `WHERE ${clauses.join(" AND ")}`;
 
   const totals = db
     .prepare(

@@ -5,25 +5,37 @@ import Transactions from "./pages/Transactions.jsx";
 import UploadReceipt from "./pages/UploadReceipt.jsx";
 import TuroSync from "./pages/TuroSync.jsx";
 import Login from "./pages/Login.jsx";
+import Signup from "./pages/Signup.jsx";
 import { api, setUnauthorizedHandler } from "./api.js";
 
 export default function App() {
-  const [authed, setAuthed] = useState(null); // null = checking
+  const [auth, setAuth] = useState(null); // null = checking, else { authenticated, email }
+  const [authView, setAuthView] = useState("login"); // "login" | "signup"
 
-  useEffect(() => {
-    setUnauthorizedHandler(() => setAuthed(false));
+  const checkAuth = () =>
     api
       .authStatus()
-      .then((s) => setAuthed(s.authenticated))
-      .catch(() => setAuthed(false));
+      .then(setAuth)
+      .catch(() => setAuth({ authenticated: false }));
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => setAuth({ authenticated: false }));
+    checkAuth();
   }, []);
 
-  if (authed === null) return null;
-  if (!authed) return <Login onLoggedIn={() => setAuthed(true)} />;
+  if (auth === null) return null;
+
+  if (!auth.authenticated) {
+    return authView === "signup" ? (
+      <Signup onSignedUp={checkAuth} onSwitchToLogin={() => setAuthView("login")} />
+    ) : (
+      <Login onLoggedIn={checkAuth} onSwitchToSignup={() => setAuthView("signup")} />
+    );
+  }
 
   const logout = async () => {
     await api.logout();
-    setAuthed(false);
+    setAuth({ authenticated: false });
   };
 
   return (
@@ -44,7 +56,10 @@ export default function App() {
             Turo Sync
           </NavLink>
         </nav>
-        <button className="secondary" style={{ marginTop: 24 }} onClick={logout}>
+        <div style={{ marginTop: 24, fontSize: 12, color: "#888", wordBreak: "break-all" }}>
+          {auth.email}
+        </div>
+        <button className="secondary" style={{ marginTop: 8 }} onClick={logout}>
           Log out
         </button>
       </aside>

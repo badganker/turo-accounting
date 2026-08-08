@@ -53,8 +53,8 @@ async function fetchYearCsv(year, storageState) {
   return rows;
 }
 
-export async function syncTuroEarnings({ years } = {}) {
-  const storageState = getSavedStorageState();
+export async function syncTuroEarnings(userId, { years } = {}) {
+  const storageState = getSavedStorageState(userId);
   if (!storageState) {
     const err = new Error("No saved Turo session. Connect your Turo account first.");
     err.code = "NO_SESSION";
@@ -66,9 +66,9 @@ export async function syncTuroEarnings({ years } = {}) {
 
   const insert = db.prepare(`
     INSERT INTO transactions
-      (type, source, dedup_key, date, amount_cents, currency, category, vehicle, description, reservation_id, raw_data)
-    VALUES (@type, 'turo_sync', @dedup_key, @date, @amount_cents, 'USD', @category, @vehicle, @description, @reservation_id, @raw_data)
-    ON CONFLICT(dedup_key) DO UPDATE SET
+      (user_id, type, source, dedup_key, date, amount_cents, currency, category, vehicle, description, reservation_id, raw_data)
+    VALUES (@user_id, @type, 'turo_sync', @dedup_key, @date, @amount_cents, 'USD', @category, @vehicle, @description, @reservation_id, @raw_data)
+    ON CONFLICT(user_id, dedup_key) DO UPDATE SET
       amount_cents = excluded.amount_cents,
       category = excluded.category,
       updated_at = datetime('now')
@@ -112,6 +112,7 @@ export async function syncTuroEarnings({ years } = {}) {
             : `turo:${year}:${crypto.createHash("sha1").update(rawJson).digest("hex")}`;
 
         insert.run({
+          user_id: userId,
           type: amountCents >= 0 ? "income" : "expense",
           dedup_key: dedupKey,
           date: date || `${year}-01-01`,
@@ -127,11 +128,11 @@ export async function syncTuroEarnings({ years } = {}) {
     }
   } catch (err) {
     if (err.code === "SESSION_EXPIRED") {
-      markSessionExpired();
+      markSessionExpired(userId);
     }
     throw err;
   }
 
-  markSessionSynced();
+  markSessionSynced(userId);
   return { imported, skipped, years: targetYears };
 }
