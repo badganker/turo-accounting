@@ -5,23 +5,25 @@ reimbursements straight from your Turo account, and lets you upload receipts
 (fuel, cleaning, maintenance, tolls…) which Claude reads to fill in the
 amount/date/category for you. Multi-user — anyone can sign up and gets their
 own isolated data — and deployable, so it's usable from your phone, not just
-at home.
+at home, including connecting your own Turo account from your phone's
+browser.
 
-> **Project status**: functional, but young. It supports multiple accounts
-> with properly isolated data, but *connecting* a Turo account still requires
-> running a small script on a computer (see "How the Turo connection works"
-> below) rather than doing it entirely from the web page — that in-browser
-> flow is planned but not built yet (tracked as "Phase B" — see
-> [Contributing](#contributing)). Treat this as an early-stage self-hosted
-> tool, not a polished consumer product.
+> **Project status**: functional, but young. Multi-account with properly
+> isolated data, and Turo connect now happens entirely in the browser (see
+> below) — no local script or install required. Treat this as an
+> early-stage self-hosted tool, not a polished consumer product; see
+> [Contributing](#contributing) for what's still missing before "real
+> product."
 
 ## ⚠️ Before you rely on this
 
-- **Turo has no public API for hosts.** This works by reusing your logged-in
-  browser session to fetch the same CSV export Turo's own "Download CSV"
-  button produces. That's outside what Turo's terms of service anticipate
-  for third-party tools, and automated access is the kind of thing platforms
-  sometimes rate-limit or block. Use at your own risk; don't be surprised if
+- **Turo has no public API for hosts.** This works by driving a real browser
+  session against turo.com and reusing the resulting login session to fetch
+  the same CSV export Turo's own "Download CSV" button produces. That's
+  outside what Turo's terms of service anticipate for third-party tools —
+  Cloudflare (which fronts turo.com) already actively blocks naive automated
+  access (see below), and there's no guarantee it won't catch and block this
+  approach too as it evolves. Use at your own risk; don't be surprised if
   Turo changes something that breaks this.
 - **This is not legal, tax, or accounting advice**, and there's no warranty
   (see [LICENSE](LICENSE)). Verify categorization and totals against your
@@ -45,7 +47,7 @@ at home.
 ```bash
 cd server
 npm install
-npx playwright install chromium   # only needed once, powers the local Turo login script
+npx playwright install chromium   # only needed once, powers Turo connect
 cp .env.example .env
 ```
 
@@ -70,7 +72,8 @@ npm install
 npm run dev
 ```
 
-Runs on http://localhost:5174 and proxies `/api/*` + `/uploads/*` to the server.
+Runs on http://localhost:5174 and proxies `/api/*`, `/uploads/*`, and
+`/ws/*` to the server.
 
 ## Accounts
 
@@ -85,41 +88,56 @@ There's no email verification or password-reset flow yet.
 
 Turo has no public API or OAuth for third-party apps, and login always
 requires an SMS code, an email flow, or Google/Apple sign-in — none of which
-can be driven unattended with a stored password, and a deployed server
-usually has no display to show a browser window on anyway. So today,
-connecting requires **a computer with a display** — it doesn't have to be
-the server, but it can't (yet) be done purely from a phone browser:
+can be driven unattended with a stored password. So **Turo Sync → Connect
+Turo** drives an isolated, real browser session on the server for you to log
+into by hand — the page streams live into a `<canvas>` (Chrome DevTools
+Protocol screencast over WebSocket, not a stored video — see
+`server/src/turo/browserSessions.js` and `browserSocket.js`), and your
+clicks/keystrokes are forwarded into it. Nothing you type is seen by this
+app beyond that video feed; once you're logged in, the resulting browser
+session (not your password) is captured and encrypted.
 
-```bash
-cd server
-npm run connect:turo
-```
+**This has to run headed, not headless.** A live probe during development
+found that Cloudflare (which fronts turo.com) returns a hard "Sorry, you've
+been blocked" page to Chromium's real headless mode, but loads normally in
+headed mode from the identical environment — so the connect-session browser
+launches with `headless: false`. On Linux (the Docker deployment) that needs
+a virtual display since there's none physically present; `server/src/turo/xvfb.js`
+starts one (`Xvfb`) on demand. On macOS/Windows dev machines this is a
+no-op — headed mode already works natively, so running this locally will
+briefly pop open a real, visible Chromium window per connect attempt (same
+as opening any other app).
 
-It'll ask for your **account** email/password (the one you log into this
-app with — not Turo's), so it knows whose session to save, then opens a
-real, visible browser window — log in to Turo there exactly as you normally
-would (phone code, Google, whatever). Nothing you type there is seen by this
-app; only the resulting browser session is captured, encrypted, and sent to
-wherever the app is running. By default that's your local server; to connect
-a deployed instance instead:
+Only one connect session is allowed per account at a time (starting a new
+one replaces your own prior one), and a global cap across all accounts
+(`MAX_CONCURRENT_TURO_SESSIONS`, default 3) limits how many headless-turned-headed
+Chromium instances can run at once — since this means running arbitrary
+browser processes on request, that cap exists specifically to bound resource
+use and abuse, not as an arbitrary throttle. Sessions self-destruct after 10
+minutes or when their WebSocket closes.
+
+Prefer the command line? `npm run connect:turo` (in `server/`) still works —
+it asks for your account email/password, then opens a real local browser
+window the same way, useful if you'd rather not do this from a browser tab,
+or want to connect a deployed instance without going through its web UI:
 
 ```bash
 TURO_TARGET_URL=https://your-app.fly.dev npm run connect:turo
 ```
 
-Once connected, **Turo Sync → Sync now** works from anywhere (including your
-phone) — it fetches `https://turo.com/earnings/csv?year=YYYY` (the same CSV
-export Turo's own "Download CSV" button on the Transaction History page uses)
-using the saved session, for the current and previous year, and imports every
-row as an income or expense transaction (negative rows — cancellation fees,
-adjustments — are stored as expenses). When the session eventually expires,
-sync fails with a clear "session expired" error — just run
-`npm run connect:turo` again.
+Once connected (either way), **Sync now** works from anywhere (including
+your phone) — it fetches `https://turo.com/earnings/csv?year=YYYY` (the same
+CSV export Turo's own "Download CSV" button on the Transaction History page
+uses) using the saved session, for the current and previous year, and
+imports every row as an income or expense transaction (negative rows —
+cancellation fees, adjustments — are stored as expenses). When the session
+eventually expires, sync fails with a clear "session expired" error — just
+connect again.
 
 Turo's CSV export has ~47 columns and the exact header names weren't
 available while building this (would've required downloading a real export
 with live financial data, which felt like the wrong call — this was built by
-inspecting the page structure only, plus one live probe that confirmed an
+inspecting the page structure only, plus a live probe that confirmed an
 invalid session gets a plain `401`, not a redirect). The importer
 (`server/src/turo/sync.js`) matches columns by fuzzy header name (e.g. any
 header containing "earnings" or "amount") rather than fixed position, and
@@ -132,7 +150,7 @@ be adjusted without re-pulling data.
 **Upload Receipt** page → pick a photo (or take one with your phone camera)
 → Claude extracts vendor, amount, date, and category → you review/edit before
 it's saved as an expense. The original image is kept on the server, under a
-per-account folder, and linked from the transaction.
+per-account folder, and served back only to the account that owns it.
 
 ## Categories
 
@@ -142,9 +160,11 @@ per-account folder, and linked from the transaction.
 
 ## Deploying (Fly.io)
 
-Recommended because it's cheap (a few dollars a month on the smallest
-machine, scale-to-zero when idle) and supports a persistent volume, which
-this needs for the SQLite database and uploaded receipts.
+Recommended for its persistent volume (needed for the SQLite database and
+uploaded receipts) and scale-to-zero pricing. Budget for more than the
+absolute cheapest tier now, though — the server runs real Chromium instances
+on demand for Turo connect, which needs real memory headroom (see
+`fly.toml`).
 
 1. Sign up at [fly.io](https://fly.io) and install `flyctl`:
    ```bash
@@ -175,44 +195,46 @@ this needs for the SQLite database and uploaded receipts.
    fly deploy
    ```
    No local Docker install needed — `fly deploy` builds using Fly's remote
-   builder.
-6. Sign up an account on the deployed URL, then connect Turo from your Mac
-   (one time and again whenever the session expires):
-   ```bash
-   cd server
-   TURO_TARGET_URL=https://<your-app-name>.fly.dev npm run connect:turo
-   ```
-
-After that, `https://<your-app-name>.fly.dev` works from your phone: view the
-dashboard, add manual transactions, upload receipts with your camera, and hit
-Sync — all without needing a computer, except for that one Turo (re)connect
-step per account.
+   builder. The image now installs Chromium + its Linux dependencies
+   (`npx playwright install --with-deps chromium` in the `Dockerfile`), so
+   the build takes longer and the image is larger than a typical small Node
+   app.
+6. Sign up an account on the deployed URL, then use **Turo Sync → Connect
+   Turo** right there in the browser — including from your phone.
 
 The Dockerfile and fly.toml were written by inspecting Fly's docs and this
 project's own path assumptions, but haven't been deploy-tested against a real
 Fly account (no Docker or Fly account was available in the environment this
 was built in) — the first `fly deploy` may need small fixes if something
-doesn't line up.
+doesn't line up. The in-browser Turo connect flow itself *has* been tested
+end-to-end locally against the real turo.com (screen streaming, click/type
+forwarding, session teardown, and the concurrency cap all verified working)
+— just not yet inside the actual Docker/Xvfb path this deploy step produces.
 
 ## Contributing
 
 Roadmap, roughly in order:
-- **Phase B — in-browser Turo connect.** Replace `connect-turo.js` with an
-  embedded remote browser: the server drives an isolated headless Chromium
-  per connect attempt, streams it into a `<canvas>` over WebSocket (Chrome
-  DevTools Protocol screencast, not a full VNC stack), and forwards input —
-  so a user logs into Turo from their own browser tab, nothing to install.
-  Needs careful session isolation/cleanup and abuse limits (rate-limiting
-  concurrent connect attempts, timeouts) since it means running arbitrary
-  headless browser processes on request.
 - **Phase C — production hardening**: privacy policy + terms of service,
-  rate limiting, email verification / password reset, monitoring, and infra
-  sizing once Phase B means running headless Chromium per active connection
-  (no longer fits the smallest Fly machine).
+  IP-based rate limiting (today's abuse controls are per-account + a global
+  concurrency cap only — see "How the Turo connection works"), email
+  verification / password reset, monitoring, non-root Docker user, and
+  validating the Xvfb/headed-Chromium path actually works inside a real
+  Fly.io deploy (only tested on macOS locally so far).
 
 ## Known limitations
 
 - No email verification or password reset (see Accounts, above).
+- Turo Connect's keyboard forwarding handles basic ASCII input (letters,
+  digits, punctuation, backspace/tab/enter) — no IME/international input.
+- Only one Turo connect session per account at a time, and a small global
+  concurrency cap across all accounts (see above) — by design, but it means
+  a busy deployment can make people wait to connect.
+- In local dev, closing the Turo Connect tab while going through Vite's dev
+  proxy (port 5174) doesn't always cleanly close the underlying WebSocket
+  (a Vite/http-proxy quirk, confirmed by testing directly against the
+  server's own port instead, where teardown was always clean) — the 10
+  minute absolute session timeout is the backstop. Doesn't affect production
+  (no separate dev proxy there, single process).
 - `react-router-dom` and `vite`'s `esbuild` have moderate advisories with no
   fix available for Node 18 (the fixed major versions require Node 20+).
   Low risk for personal use; the Fly deployment builds on Node 20 (see
@@ -223,7 +245,9 @@ Roadmap, roughly in order:
   verified against a real export — check the first sync's results against
   your actual Turo earnings page.
 - The Docker image runs as root (no `USER` directive) — worth hardening
-  before this handles real users' data at scale.
+  before this handles real users' data at scale. Chromium is launched with
+  `--no-sandbox` because of this; fixing the root issue would let that be
+  removed too.
 
 ## License
 

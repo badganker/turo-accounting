@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 
 export default function TuroSync() {
@@ -6,6 +7,7 @@ export default function TuroSync() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   const load = () => api.turoStatus().then(setStatus).catch((e) => setError(e.message));
 
@@ -36,13 +38,36 @@ export default function TuroSync() {
       <h2>Turo Sync</h2>
 
       <div className="card">
-        <p>
-          Turo doesn't offer third-party account login (no OAuth, and sign-in always requires an
-          SMS code, email flow, or Google/Apple), and it needs a real browser window to complete
-          — so connecting has to happen on a machine with a display, not here.
+        <h3>
+          Session status: <span className={`badge ${sessionStatus}`}>{sessionStatus}</span>
+        </h3>
+        {status?.session?.last_synced_at && (
+          <p className="muted">Last synced: {status.session.last_synced_at}</p>
+        )}
+        <button onClick={() => navigate("/turo-connect")}>
+          {sessionStatus === "active" ? "Reconnect Turo" : "Connect Turo"}
+        </button>{" "}
+        <button className="secondary" onClick={sync} disabled={syncing || sessionStatus === "none"}>
+          {syncing ? "Syncing…" : "Sync now"}
+        </button>
+        {error && <div className="error">{error}</div>}
+        {syncResult && (
+          <p className="muted">
+            Imported {syncResult.imported} transactions from {syncResult.years?.join(", ")}
+            {syncResult.skipped ? ` (${syncResult.skipped} rows skipped — unrecognized amount column)` : ""}.
+          </p>
+        )}
+      </div>
+
+      <div className="card">
+        <p className="muted">
+          <strong>Connect Turo</strong> logs you into Turo right here, in an isolated browser
+          session on the server — nothing to install. Once connected, <strong>Sync now</strong>{" "}
+          works from anywhere (including your phone) until the session eventually expires, at
+          which point you just connect again.
         </p>
-        <p>
-          On your Mac, in the <code>server/</code> folder, run:
+        <p className="muted">
+          Prefer the command line instead? From the <code>server/</code> folder:
         </p>
         <pre
           style={{
@@ -55,46 +80,11 @@ export default function TuroSync() {
           npm run connect:turo
         </pre>
         <p className="muted">
-          It'll ask for your <strong>account</strong> email/password (the one you log into this
-          app with, not Turo) so it knows whose session to save, then a browser window opens —
-          log in to Turo there exactly as you normally would. This app never sees your Turo
-          password, only the resulting session. Set <code>TURO_TARGET_URL</code> first if this
-          app is deployed elsewhere, e.g.:
+          It'll ask for your account email/password (the one you log into this app with, not
+          Turo), then opens a real browser window for the Turo login. Set{" "}
+          <code>TURO_TARGET_URL=https://your-app.example.com</code> first if connecting a
+          deployed instance from your own machine.
         </p>
-        <pre
-          style={{
-            background: "#f4f4f4",
-            padding: "10px 14px",
-            borderRadius: 6,
-            overflowX: "auto",
-          }}
-        >
-          TURO_TARGET_URL=https://your-app.example.com npm run connect:turo
-        </pre>
-        <p className="muted">
-          Once connected, <strong>Sync now</strong> below works from anywhere — including here on
-          your phone — until the session eventually expires, at which point you run the command
-          again.
-        </p>
-      </div>
-
-      <div className="card">
-        <h3>
-          Session status: <span className={`badge ${sessionStatus}`}>{sessionStatus}</span>
-        </h3>
-        {status?.session?.last_synced_at && (
-          <p className="muted">Last synced: {status.session.last_synced_at}</p>
-        )}
-        <button onClick={sync} disabled={syncing || sessionStatus === "none"}>
-          {syncing ? "Syncing…" : "Sync now"}
-        </button>
-        {error && <div className="error">{error}</div>}
-        {syncResult && (
-          <p className="muted">
-            Imported {syncResult.imported} transactions from {syncResult.years?.join(", ")}
-            {syncResult.skipped ? ` (${syncResult.skipped} rows skipped — unrecognized amount column)` : ""}.
-          </p>
-        )}
       </div>
     </div>
   );

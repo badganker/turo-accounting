@@ -1,11 +1,25 @@
 import { Router } from "express";
 import { getSessionStatus, saveIncomingStorageState } from "../turo/session.js";
 import { syncTuroEarnings } from "../turo/sync.js";
+import { createSession } from "../turo/browserSessions.js";
 
 const router = Router();
 
 router.get("/status", (req, res) => {
   res.json({ session: getSessionStatus(req.userId) });
+});
+
+// Starts an isolated headless-browser session the user completes their Turo
+// login in — see server/src/turo/browserSessions.js + browserSocket.js for
+// the screen-streaming/input-forwarding side of this.
+router.post("/connect-session", async (req, res) => {
+  try {
+    const sessionId = await createSession(req.userId);
+    res.json({ sessionId });
+  } catch (err) {
+    const status = err.code === "CAPACITY" ? 429 : 500;
+    res.status(status).json({ error: err.message, code: err.code });
+  }
 });
 
 // Called by server/scripts/connect-turo.js after an interactive login

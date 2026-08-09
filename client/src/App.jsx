@@ -4,6 +4,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Transactions from "./pages/Transactions.jsx";
 import UploadReceipt from "./pages/UploadReceipt.jsx";
 import TuroSync from "./pages/TuroSync.jsx";
+import TuroConnect from "./pages/TuroConnect.jsx";
 import Login from "./pages/Login.jsx";
 import Signup from "./pages/Signup.jsx";
 import { api, setUnauthorizedHandler } from "./api.js";
@@ -69,6 +70,7 @@ export default function App() {
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/upload-receipt" element={<UploadReceipt />} />
           <Route path="/turo-sync" element={<TuroSync />} />
+          <Route path="/turo-connect" element={<TuroConnect />} />
         </Routes>
       </main>
     </div>

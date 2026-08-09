@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cookieParser from "cookie-parser";
+import http from "node:http";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -12,6 +13,7 @@ import receiptsRouter from "./routes/receipts.js";
 import turoRouter from "./routes/turo.js";
 import summaryRouter from "./routes/summary.js";
 import { requireAuth } from "./lib/auth.js";
+import { attachTuroConnectSocket } from "./turo/browserSocket.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -52,7 +54,10 @@ if (fs.existsSync(clientDist)) {
   });
 }
 
+const server = http.createServer(app);
+attachTuroConnectSocket(server);
+
 const port = process.env.PORT || 4100;
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Turo accounting server running on http://localhost:${port}`);
 });

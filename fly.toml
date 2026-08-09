@@ -23,4 +23,8 @@ primary_region = "sjc"
 
 [[vm]]
   size = "shared-cpu-1x"
-  memory = "256mb"
+  # A single headless Chromium instance alone typically wants 300-512MB+,
+  # and up to MAX_CONCURRENT_TURO_SESSIONS (default 3, see
+  # server/src/turo/browserSessions.js) can run at once for the in-browser
+  # Turo connect flow.
+  memory = "1gb"
