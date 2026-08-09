@@ -3,17 +3,24 @@
 Income/expense tracking for Turo hosts: pulls trip earnings and guest
 reimbursements straight from your Turo account, and lets you upload receipts
 (fuel, cleaning, maintenance, tolls…) which Claude reads to fill in the
-amount/date/category for you. Multi-user — anyone can sign up and gets their
-own isolated data — and deployable, so it's usable from your phone, not just
-at home, including connecting your own Turo account from your phone's
+amount/date/category for you.
+
+**Open source and meant to be self-hosted.** A few other tools already do
+Turo earnings sync and fleet analytics (MyFleetOS, RideSheets, Raptor
+Explorer, Stevesie's scrapers, among others) — this one's reason to exist
+is that your Turo login session and financial data never leave a server you
+control. There's no third party in the middle holding your Turo session;
+run it yourself, on your own machine or your own cheap cloud box, and that's
+where everything stays. It's multi-user (each account's data is fully
+isolated) and deployable, so it works from your phone too, not just at
+home — including connecting your own Turo account from your phone's
 browser.
 
 > **Project status**: functional, but young. Multi-account with properly
-> isolated data, and Turo connect now happens entirely in the browser (see
+> isolated data, and Turo connect happens entirely in the browser (see
 > below) — no local script or install required. Treat this as an
 > early-stage self-hosted tool, not a polished consumer product; see
-> [Contributing](#contributing) for what's still missing before "real
-> product."
+> [Contributing](#contributing) for what's still missing.
 
 ## ⚠️ Before you rely on this
 
@@ -160,11 +167,16 @@ per-account folder, and served back only to the account that owns it.
 
 ## Deploying (Fly.io)
 
-Recommended for its persistent volume (needed for the SQLite database and
-uploaded receipts) and scale-to-zero pricing. Budget for more than the
-absolute cheapest tier now, though — the server runs real Chromium instances
-on demand for Turo connect, which needs real memory headroom (see
-`fly.toml`).
+This is for running your own instance (for yourself, your household, your
+small fleet co-op — whoever you'd trust with a shared password) somewhere
+reachable from your phone. It is not a guide to running this as a public
+service for strangers — see [Contributing](#contributing) for what that
+would additionally require.
+
+Fly.io is recommended for its persistent volume (needed for the SQLite
+database and uploaded receipts) and scale-to-zero pricing. Budget for more
+than the absolute cheapest tier — the server runs real Chromium instances on
+demand for Turo connect, which needs real memory headroom (see `fly.toml`).
 
 1. Sign up at [fly.io](https://fly.io) and install `flyctl`:
    ```bash
@@ -213,13 +225,24 @@ forwarding, session teardown, and the concurrency cap all verified working)
 
 ## Contributing
 
-Roadmap, roughly in order:
-- **Phase C — production hardening**: privacy policy + terms of service,
-  IP-based rate limiting (today's abuse controls are per-account + a global
-  concurrency cap only — see "How the Turo connection works"), email
-  verification / password reset, monitoring, non-root Docker user, and
-  validating the Xvfb/headed-Chromium path actually works inside a real
+Roadmap, split by who's running it:
+
+**Running your own instance (the primary intended use)** — still open:
+- Validating the Xvfb/headed-Chromium path actually works inside a real
   Fly.io deploy (only tested on macOS locally so far).
+- Email verification / password reset.
+- Non-root Docker user (Chromium currently runs with `--no-sandbox` because
+  of this — see Known limitations).
+- General polish — this was built in one focused push and hasn't had much
+  real-world mileage yet.
+
+**Running this as a hosted service for other people** — a materially
+bigger lift, deliberately not the focus so far: a privacy policy and terms
+of service (you'd be holding other people's Turo sessions and financial
+records), IP-based rate limiting beyond today's per-account + global
+concurrency cap (see "How the Turo connection works"), monitoring, and
+realistic capacity planning for running headless-turned-headed Chromium
+per active connection at whatever scale you're expecting.
 
 ## Known limitations
 

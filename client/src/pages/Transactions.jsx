@@ -1,18 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
-
-const INCOME_CATEGORIES = ["trip_earning", "reimbursement", "extras", "other_income"];
-const EXPENSE_CATEGORIES = [
-  "fuel",
-  "cleaning",
-  "maintenance",
-  "insurance",
-  "toll",
-  "supplies",
-  "parking",
-  "fee",
-  "other_expense",
-];
+import { money } from "../format.js";
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from "../categories.js";
 
 const emptyForm = {
   type: "expense",
@@ -22,10 +11,6 @@ const emptyForm = {
   vehicle: "",
   description: "",
 };
-
-function money(cents) {
-  return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
-}
 
 export default function Transactions() {
   const [rows, setRows] = useState([]);

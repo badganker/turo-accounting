@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
-
-function money(cents) {
-  return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
-}
+import { money } from "../format.js";
 
 export default function Dashboard() {
   const [summary, setSummary] = useState(null);

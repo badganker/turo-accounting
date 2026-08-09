@@ -18,6 +18,13 @@ import { attachTuroConnectSocket } from "./turo/browserSocket.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
+// Fly.io terminates TLS and proxies to this app over one internal hop —
+// without this, req.ip (and so the rate limiters in lib/rateLimit.js) would
+// see Fly's proxy address for every request instead of the real client.
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
 app.use(express.json());
 app.use(cookieParser());
 const uploadsDir = process.env.DATA_DIR

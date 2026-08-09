@@ -2,22 +2,22 @@ import crypto from "node:crypto";
 import { chromium } from "playwright";
 import { saveIncomingStorageState } from "./session.js";
 import { ensureVirtualDisplay } from "./xvfb.js";
+import { TURO_LOGIN_URL, isLoggedIntoTuro } from "./loginDetection.js";
 
-const LOGIN_URL = "https://turo.com/us/en/login";
 const ABSOLUTE_TIMEOUT_MS = 10 * 60 * 1000;
 const LOGIN_POLL_MS = 2000;
 const SWEEP_INTERVAL_MS = 30 * 1000;
 const MAX_CONCURRENT_SESSIONS = Number(process.env.MAX_CONCURRENT_TURO_SESSIONS) || 3;
 
 // sessionId -> { userId, browser, context, page, cdp, createdAt, status,
-//                onFrame, onConnected, loginTimer }
+//                onConnected, loginTimer }
 const sessions = new Map();
 
 function isTuroHost(hostname) {
   return hostname === "turo.com" || hostname.endsWith(".turo.com");
 }
 
-async function destroySession(sessionId) {
+export async function destroySession(sessionId) {
   const session = sessions.get(sessionId);
   if (!session) return;
   sessions.delete(sessionId);
@@ -78,7 +78,6 @@ export async function createSession(userId) {
     cdp: null,
     createdAt: Date.now(),
     status: "connecting",
-    onFrame: null,
     onConnected: null,
     loginTimer: null,
   };
@@ -101,12 +100,7 @@ export async function createSession(userId) {
 
   session.loginTimer = setInterval(async () => {
     if (!sessions.has(sessionId)) return;
-    const loggedIn = await page
-      .evaluate(() => {
-        const text = document.body.innerText || "";
-        return text.includes("Switch to host") || text.includes("Switch to guest");
-      })
-      .catch(() => false);
+    const loggedIn = await isLoggedIntoTuro(page);
     if (!loggedIn) return;
 
     clearInterval(session.loginTimer);
@@ -118,7 +112,7 @@ export async function createSession(userId) {
   }, LOGIN_POLL_MS);
 
   try {
-    await page.goto(LOGIN_URL, { waitUntil: "domcontentloaded" });
+    await page.goto(TURO_LOGIN_URL, { waitUntil: "domcontentloaded" });
   } catch (err) {
     await destroySession(sessionId);
     throw err;
@@ -126,5 +120,3 @@ export async function createSession(userId) {
 
   return sessionId;
 }
-
-export { destroySession };

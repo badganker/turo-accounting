@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "../db.js";
 import { hashPassword, verifyPassword, issueToken, verifyToken, SESSION_COOKIE } from "../lib/auth.js";
+import { authLimiter } from "../lib/rateLimit.js";
 
 const router = Router();
 const COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -15,7 +16,7 @@ function setSessionCookie(res, userId) {
   });
 }
 
-router.post("/signup", async (req, res) => {
+router.post("/signup", authLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   const normalizedEmail = String(email || "").trim().toLowerCase();
 
@@ -44,7 +45,7 @@ router.post("/signup", async (req, res) => {
   res.status(201).json({ ok: true });
 });
 
-router.post("/login", async (req, res) => {
+router.post("/login", authLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   const normalizedEmail = String(email || "").trim().toLowerCase();
 

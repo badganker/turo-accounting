@@ -1,16 +1,6 @@
 import { useState } from "react";
 import { api } from "../api.js";
-
-const EXPENSE_CATEGORIES = [
-  "fuel",
-  "cleaning",
-  "maintenance",
-  "insurance",
-  "toll",
-  "supplies",
-  "parking",
-  "other_expense",
-];
+import { RECEIPT_EXPENSE_CATEGORIES } from "../categories.js";
 
 export default function UploadReceipt() {
   const [file, setFile] = useState(null);
@@ -110,7 +100,7 @@ export default function UploadReceipt() {
                 value={draft.category || "other_expense"}
                 onChange={(e) => setDraft({ ...draft, category: e.target.value })}
               >
-                {EXPENSE_CATEGORIES.map((c) => (
+                {RECEIPT_EXPENSE_CATEGORIES.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>

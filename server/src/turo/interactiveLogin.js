@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
+import { TURO_LOGIN_URL, isLoggedIntoTuro } from "./loginDetection.js";
 
-const LOGIN_URL = "https://turo.com/us/en/login";
 const LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
 const POLL_INTERVAL_MS = 2000;
 
@@ -14,7 +14,7 @@ export async function runInteractiveLogin({ onWaiting } = {}) {
   try {
     const context = await browser.newContext();
     const page = await context.newPage();
-    await page.goto(LOGIN_URL, { waitUntil: "domcontentloaded" });
+    await page.goto(TURO_LOGIN_URL, { waitUntil: "domcontentloaded" });
     onWaiting?.();
 
     const deadline = Date.now() + LOGIN_TIMEOUT_MS;
@@ -23,12 +23,7 @@ export async function runInteractiveLogin({ onWaiting } = {}) {
       if (page.isClosed()) {
         throw new Error("Browser window was closed before login completed.");
       }
-      loggedIn = await page
-        .evaluate(() => {
-          const text = document.body.innerText || "";
-          return text.includes("Switch to host") || text.includes("Switch to guest");
-        })
-        .catch(() => false);
+      loggedIn = await isLoggedIntoTuro(page);
       if (loggedIn) break;
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
     }

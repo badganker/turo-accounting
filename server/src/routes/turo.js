@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getSessionStatus, saveIncomingStorageState } from "../turo/session.js";
 import { syncTuroEarnings } from "../turo/sync.js";
 import { createSession } from "../turo/browserSessions.js";
+import { connectSessionLimiter } from "../lib/rateLimit.js";
 
 const router = Router();
 
@@ -12,7 +13,7 @@ router.get("/status", (req, res) => {
 // Starts an isolated headless-browser session the user completes their Turo
 // login in — see server/src/turo/browserSessions.js + browserSocket.js for
 // the screen-streaming/input-forwarding side of this.
-router.post("/connect-session", async (req, res) => {
+router.post("/connect-session", connectSessionLimiter, async (req, res) => {
   try {
     const sessionId = await createSession(req.userId);
     res.json({ sessionId });
